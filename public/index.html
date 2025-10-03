@@ -2,10 +2,11 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
+  <title>AR FPS 공간음향</title>
   <link rel="manifest" href="manifest.json">
-  <title>AR 공간음향 게임</title>
+  <meta name="theme-color" content="#000000"/>
   <style>
-    body { margin:0; overflow:hidden; }
+    body { margin:0; overflow:hidden; background:black; }
     #enter-ar {
       position: absolute;
       bottom: 20px; left: 50%;
@@ -16,17 +17,43 @@
       color: white;
       border: none;
       border-radius: 8px;
+      z-index: 10;
+    }
+    #crosshair {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 20px; height: 20px;
+      transform: translate(-50%, -50%);
+      border: 2px solid red;
+      border-radius: 50%;
+      z-index: 5;
+      pointer-events: none;
+    }
+    #message {
+      position: absolute;
+      top: 10px; left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      background: rgba(0,0,0,0.5);
+      padding: 5px 15px;
+      border-radius: 8px;
+      font-family: sans-serif;
+      z-index: 10;
     }
   </style>
 </head>
 <body>
-  <button id="enter-ar">AR 시작</button>
+  <div id="crosshair"></div>
+  <button id="enter-ar">AR FPS 시작</button>
+  <div id="message">🎧 목표 구체를 조준하고 쏘세요!</div>
+
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/ARButton.js"></script>
   <script>
-    let camera, scene, renderer;
+    let scene, camera, renderer;
     let spheres = [];
-    let audioCtx, source, panner, correctSphere;
+    let raycaster, audioCtx;
+    let correctSphere, source, panner;
 
     init();
 
@@ -39,26 +66,31 @@
       renderer.xr.enabled = true;
       document.body.appendChild(renderer.domElement);
 
-      // 광원
       const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
       scene.add(light);
 
-      // 오브젝트 생성 (세 개의 구체)
+      // 구체 생성
       const geometry = new THREE.SphereGeometry(0.1, 32, 32);
-      const material = new THREE.MeshStandardMaterial({ color: 0x00ffcc });
+      const material = new THREE.MeshStandardMaterial({ color:0x00ffcc });
 
       for(let i=0;i<3;i++){
         const sphere = new THREE.Mesh(geometry, material.clone());
-        sphere.position.set((i-1)*0.5, 0, -1.5); // -0.5, 0, +0.5
+        sphere.position.set((i-1)*0.5, 0, -1.5);
         scene.add(sphere);
         spheres.push(sphere);
       }
+
+      // 레이캐스터 (총알 판정)
+      raycaster = new THREE.Raycaster();
 
       document.getElementById("enter-ar").onclick = () => {
         document.body.appendChild(ARButton.createButton(renderer));
         startRound();
         renderer.setAnimationLoop(render);
       };
+
+      // 발사 이벤트
+      window.addEventListener("click", shoot);
     }
 
     function render(){
@@ -66,7 +98,7 @@
       renderer.render(scene, camera);
     }
 
-    // 오디오
+    // ===== 오디오 출력 =====
     function playFromSphere(sphere){
       if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
       if(source) source.stop();
@@ -89,7 +121,34 @@
 
     function startRound(){
       correctSphere = spheres[Math.floor(Math.random()*spheres.length)];
+      document.getElementById("message").textContent = "👂 소리를 듣고 목표를 찾아 쏘세요!";
       playFromSphere(correctSphere);
+    }
+
+    function shoot(){
+      raycaster.setFromCamera({x:0, y:0}, camera);
+      const intersects = raycaster.intersectObjects(spheres);
+
+      if(intersects.length > 0){
+        const hit = intersects[0].object;
+        if(hit === correctSphere){
+          hit.material.color.set(0x00ff00);
+          document.getElementById("message").textContent = "✅ 명중!";
+        } else {
+          hit.material.color.set(0xff0000);
+          document.getElementById("message").textContent = "❌ 빗나감!";
+        }
+        setTimeout(startRound, 2000);
+      }
+    }
+  </script>
+
+  <script>
+    // ====== Service Worker 등록 ======
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+      .then(()=>console.log("서비스 워커 등록 완료"))
+      .catch(err=>console.log("SW 등록 실패:", err));
     }
   </script>
 </body>
