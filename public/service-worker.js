@@ -1,7 +1,10 @@
 self.addEventListener("install", e => {
   e.waitUntil(
-    caches.open("ar-game").then(cache => {
-      return cache.addAll(["./index.html", "./manifest.json"]);
+    caches.open("ar-fps").then(cache => {
+      return cache.addAll([
+        "./index.html",
+        "./manifest.json"
+      ]);
     })
   );
 });
